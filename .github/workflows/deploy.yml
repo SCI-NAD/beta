@@ -1,24 +1,46 @@
-name: Deploy to S3
+name: Deploy Website to AWS S3
 
 on:
   push:
     branches:
-      - main  # Deploy on every push to the main branch
+      - main  # Runs when pushing to 'main' branch
 
 jobs:
-  deploy:
+  build_and_deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
+    - name: Checkout repository
       uses: actions/checkout@v3
 
-    - name: Deploy to S3
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'  # Use Node.js 20
+        cache: 'yarn'  # Cache Yarn dependencies
+
+    - name: Install dependencies
+      run: yarn install --frozen-lockfile  # Ensures package versions are locked
+
+    - name: Build project
+      run: yarn build  # Build your project
+
+    - name: Deploy to Amazon S3
       uses: jakejarvis/s3-sync-action@master
       with:
-        args: --delete --exact-timestamps
+        args: --delete  # Removes old files to avoid cache issues
       env:
         AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_REGION: ${{ secrets.AWS_REGION }}
+        SOURCE_DIR: 'dist'  # Change this if your build output folder is different
+
+    - name: Invalidate CloudFront Cache (Optional)
+      uses: chetan/invalidate-cloudfront-action@v2
+      env:
+        DISTRIBUTION: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+        PATHS: "/*"
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
